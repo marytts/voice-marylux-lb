@@ -23,3 +23,34 @@ evaluationDependsOn('data')
 
 project('data').ext.sampleRate = voice.samplingRate
 
+wav {
+    dependsOn project('data').wav
+    srcDir project('data').wav.destDir
+}
+
+task text(type: Copy) {
+    from project('data').text
+    into "$buildDir/text"
+}
+
+task lab(type: Copy) {
+    from project('data').lab
+    into "$buildDir/lab"
+}
+
+task generateBasenamesList {
+    def basenamesListFile = file("$buildDir/basenames.lst")
+    inputs.files lab
+    outputs.files basenamesListFile
+    doLast {
+        basenamesListFile.withWriter { dest ->
+            fileTree(lab.destinationDir).include('lb*.lab').each {
+                dest.println it.name - '.lab'
+            }
+        }
+    }
+}
+
+legacyInit {
+    dependsOn wav, text, lab, generateBasenamesList
+}
