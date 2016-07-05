@@ -44,7 +44,9 @@ task generateBasenamesList {
     outputs.files basenamesListFile
     doLast {
         basenamesListFile.withWriter { dest ->
-            fileTree(lab.destinationDir).include('lb*.lab').each {
+            fileTree(lab.destinationDir).include('lb*.lab').findAll {
+                !it.name.startsWith('lb-wiki-0018')
+            }.each {
                 dest.println it.name - '.lab'
             }
         }
