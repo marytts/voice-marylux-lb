@@ -18,3 +18,8 @@ voice {
     }
     samplingRate = 16000
 }
+
+evaluationDependsOn('data')
+
+project('data').ext.sampleRate = voice.samplingRate
+
