@@ -7,3 +7,4 @@ pluginRepositories {
     }
 }
 rootProject.name = 'voice-marylux-lb'
+include 'data'
