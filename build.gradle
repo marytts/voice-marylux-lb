@@ -119,21 +119,17 @@ task extractWav {
     }
 }
 
-task generateBasenamesList {
-    def basenamesListFile = file("$buildDir/basenames.lst")
-    inputs.files lab
-    outputs.files basenamesListFile
+legacyInit {
+    dependsOn extractLab, extractText, extractWav
+    def basenameListFile = file("$buildDir/basenames.lst")
+    outputs.files basenameListFile
     doLast {
-        basenamesListFile.withWriter { dest ->
-            fileTree(lab.destinationDir).include('lb*.lab').findAll {
-                !it.name.startsWith('lb-wiki-0018')
-            }.each {
-                dest.println it.name - '.lab'
+        basenameListFile.withWriter { basenameList ->
+            fileTree(wav.destDir).collect {
+                it.name - '.wav'
+            }.minus('lb-wiki-0018').each {
+                basenameList.writeLine it
             }
         }
     }
-}
-
-legacyInit {
-    dependsOn wav, text, lab, generateBasenamesList
 }
