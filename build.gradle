@@ -51,10 +51,6 @@ task downloadData(type: Download) {
     acceptAnyCertificate true
 }
 
-evaluationDependsOn('data')
-
-project('data').ext.sampleRate = voice.samplingRate
-
 task extractLab {
     dependsOn downloadData
     def destDir = file("$buildDir/lab")
