@@ -5,6 +5,7 @@ pluginRepositories {
     maven {
       url 'https://jcenter.bintray.com'
     }
+    gradlePluginPortal()
 }
 rootProject.name = 'voice-marylux-lb'
 include 'data'
