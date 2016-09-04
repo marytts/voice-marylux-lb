@@ -1,5 +1,15 @@
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath group: 'org.yaml', name: 'snakeyaml', version: '1.17'
+    }
+}
+
 plugins {
     id 'de.dfki.mary.voicebuilding-legacy' version '5.2.0'
+    id 'de.undercouch.download' version '3.1.1'
 }
 
 group 'de.dfki.mary'
@@ -19,40 +29,103 @@ voice {
     samplingRate = 16000
 }
 
-evaluationDependsOn('data')
-
-project('data').ext.sampleRate = voice.samplingRate
-
-wav {
-    dependsOn project('data').wav
-    srcDir project('data').wav.destDir
+ext {
+    flacFile = file("$buildDir/marylux-data.flac")
+    yamlFile = file("$buildDir/marylux-data.yaml")
 }
 
-task text(type: Copy) {
-    from project('data').text
-    into "$buildDir/text"
+import de.undercouch.gradle.tasks.download.Download
+import org.yaml.snakeyaml.Yaml
+
+task downloadAudio(type: Download) {
+    src "https://github.com/marytts/marylux-data/releases/download/v0.1.1/$flacFile.name"
+    dest flacFile
+    overwrite false
+    acceptAnyCertificate true
 }
 
-task lab(type: Copy) {
-    from project('data').lab
-    into "$buildDir/lab"
+task downloadData(type: Download) {
+    src "https://github.com/marytts/marylux-data/releases/download/v0.1.1/$yamlFile.name"
+    dest yamlFile
+    overwrite false
+    acceptAnyCertificate true
 }
 
-task generateBasenamesList {
-    def basenamesListFile = file("$buildDir/basenames.lst")
-    inputs.files lab
-    outputs.files basenamesListFile
+task extractLab {
+    dependsOn downloadData
+    def destDir = file("$buildDir/lab")
+    inputs.file yamlFile
+    outputs.dir destDir
+    doFirst {
+        destDir.mkdirs()
+    }
     doLast {
-        basenamesListFile.withWriter { dest ->
-            fileTree(lab.destinationDir).include('lb*.lab').findAll {
-                !it.name.startsWith('lb-wiki-0018')
-            }.each {
-                dest.println it.name - '.lab'
+        new Yaml().load(yamlFile.newReader()).each { utterance ->
+            if (utterance.segments) {
+                file("$destDir/${utterance.prompt}.lab").withWriter { writer ->
+                    writer.println '#'
+                    def end = 0.0
+                    utterance.segments.each { segment ->
+                        end += segment.dur
+                        writer.println "${end.round(6)} 125 $segment.lab"
+                    }
+                }
+            }
+        }
+    }
+}
+
+task extractText {
+    dependsOn downloadData
+    def destDir = file("$buildDir/text")
+    inputs.file yamlFile
+    outputs.dir destDir
+    doFirst {
+        destDir.mkdirs()
+    }
+    doLast {
+        new Yaml().load(yamlFile.newReader()).each { utterance ->
+            if (utterance.segments) {
+                file("$destDir/${utterance.prompt}.txt").withWriter { writer ->
+                    writer.println utterance.text
+                }
+            }
+        }
+    }
+}
+
+task extractWav {
+    dependsOn downloadData, downloadAudio
+    ext.destDir = file("$buildDir/wav")
+    inputs.files yamlFile, flacFile
+    outputs.dir destDir
+    doFirst {
+        destDir.mkdirs()
+    }
+    doLast {
+        new Yaml().load(yamlFile.newReader()).each { utterance ->
+            if (utterance.segments) {
+                exec {
+                    commandLine 'sox', flacFile, "$destDir/${utterance.prompt}.wav",
+                            'trim', utterance.start, "=$utterance.end",
+                            'rate', voice.samplingRate
+                }
             }
         }
     }
 }
 
 legacyInit {
-    dependsOn wav, text, lab, generateBasenamesList
+    dependsOn extractLab, extractText, extractWav
+    def basenameListFile = file("$buildDir/basenames.lst")
+    outputs.files basenameListFile
+    doLast {
+        basenameListFile.withWriter { basenameList ->
+            fileTree(wav.destDir).collect {
+                it.name - '.wav'
+            }.minus('lb-wiki-0018').each {
+                basenameList.writeLine it
+            }
+        }
+    }
 }
